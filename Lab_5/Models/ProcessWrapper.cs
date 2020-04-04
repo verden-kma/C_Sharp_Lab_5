@@ -55,19 +55,20 @@ namespace Lab_5.Models
         {
             try
             {
-                Stopwatch sw = Stopwatch.StartNew();
                 ProcessWrapper instance = ProcessCache.ContainsKey(p.Id)
                     ? UseCache(p.Id)
                     : await Task.Run(() => BuildNew(p));
-                records.Add(sw.ElapsedMilliseconds);
-                
-                await instance.SetMutableData(p);
 
+                await instance.SetMutableData(p);
                 return instance;
             }
             catch (Win32Exception)
             {
                 return new ProcessWrapper {Pid = p.Id, Name = null};
+            }
+            catch (Exception)
+            {
+                return new ProcessWrapper{Pid = -1, Name = null};
             }
         }
 
@@ -78,8 +79,9 @@ namespace Lab_5.Models
             res.Name = p.ProcessName;
             res.IsActive = p.Responding;
             res.UserName = GetUserName(res.Pid);
-            res.FilePath = p.MainModule.FileName;
-            res.FileName = res.FilePath.Substring(res.FilePath.LastIndexOf('\\') + 1);
+            string fullPath = p.MainModule.FileName;
+            res.FilePath = fullPath.Substring(0, fullPath.LastIndexOf('\\'));
+            res.FileName = fullPath.Substring(fullPath.LastIndexOf('\\') + 1);
             lock (Lock)
             {
                 ProcessCache.Add(res.Pid,
@@ -88,12 +90,9 @@ namespace Lab_5.Models
 
             return res;
         }
-
-        static List<long> records = new List<long>();
-
+        
         private static ProcessWrapper UseCache(int pId)
         {
-            //Stopwatch sw = Stopwatch.StartNew();
             ProcessWrapper res = new ProcessWrapper();
             ProcessData pd = ProcessCache[pId];
             res.Pid = pId;
@@ -102,7 +101,6 @@ namespace Lab_5.Models
             res.FileName = pd.FileName;
             res.FilePath = pd.FilePath;
             res.UserName = pd.UserName;
-            //records.Add(sw.ElapsedMilliseconds);
             return res;
         }
 

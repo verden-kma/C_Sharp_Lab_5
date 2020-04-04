@@ -4,16 +4,20 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
 using Lab_5.Models;
+using Lab_5.Properties;
 using Lab_5.Tools.MVVM;
+using Lab_5.Views;
 
 namespace Lab_5.ViewModels
 {
-    public class ManagerVM
+    public class ManagerVM : INotifyPropertyChanged
     {
         #region Fields
 
@@ -25,7 +29,17 @@ namespace Lab_5.ViewModels
 
         #region Props
 
-        public ProcessWrapper SelectedProcess { get; set; }
+        private ProcessWrapper temp;
+
+        public ProcessWrapper SelectedProcess
+        {
+            get => temp;
+            set
+            {
+                temp = value;
+                OnPropertyChanged();
+            }
+        }
 
         #endregion
 
@@ -50,7 +64,22 @@ namespace Lab_5.ViewModels
 
         private void ModulesCmdImpl(object obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                ProcessModuleCollection pmc = Process.GetProcessById(SelectedProcess.Pid).Modules;
+                StringBuilder sb = new StringBuilder();
+                foreach (ProcessModule module in pmc)
+                {
+                    sb.Append("Module Name: ").Append(module.ModuleName).AppendLine();
+                    sb.Append("Module Path: ").Append(module.FileName).AppendLine().AppendLine();
+                }
+
+                FlexibleMessageBox.Show(sb.ToString());
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Unable to show modules info.");
+            }
         }
 
         private bool CanListModules()
@@ -73,7 +102,23 @@ namespace Lab_5.ViewModels
 
         private void ThreadsCmdImpl(object obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                ProcessThreadCollection ptc = Process.GetProcessById(SelectedProcess.Pid).Threads;
+                StringBuilder sb = new StringBuilder();
+                foreach (ProcessThread thread in ptc)
+                {
+                    sb.Append("ID: ").Append(Convert.ToString(thread.Id)).AppendLine();
+                    sb.Append("State: ").Append(thread.ThreadState).AppendLine();
+                    sb.Append("Start Time: ").Append(thread.StartTime).AppendLine().AppendLine();
+                }
+
+                FlexibleMessageBox.Show(sb.ToString());
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Unable to show threads data.");
+            }
         }
 
         private bool CanListThreads()
@@ -96,7 +141,14 @@ namespace Lab_5.ViewModels
 
         private void TerminateCmdImpl(object obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                Process.GetProcessById(SelectedProcess.Pid).Kill();
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Unable to terminate this process.");
+            }
         }
 
         private bool CanTerminate()
@@ -119,7 +171,14 @@ namespace Lab_5.ViewModels
 
         private void FolderCmdImpl(object obj)
         {
-            throw new NotImplementedException();
+            try
+            {
+                Process.Start("explorer", @SelectedProcess.FilePath);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Unable to open folder.\n");
+            }
         }
 
         private bool CanOpenFolder()
@@ -191,7 +250,8 @@ namespace Lab_5.ViewModels
                 foreach (ProcessWrapper pw in updatedProcesses.ToArray())
                 {
                     if (pw.Name != null) continue;
-                    _deniedProcesses.Add(pw.Pid);
+                    if (pw.Pid != -1)
+                        _deniedProcesses.Add(pw.Pid);
                     updatedProcesses.Remove(pw);
                 }
 
@@ -199,11 +259,11 @@ namespace Lab_5.ViewModels
 
                 // `selected` is buggy 
                 int processId = -1;
-                if (SelectedProcess != null)
                 {
                     lock (Lock)
                     {
-                        processId = SelectedProcess.Pid;
+                        if (SelectedProcess != null)
+                            processId = SelectedProcess.Pid;
                     }
                 }
 
@@ -211,15 +271,17 @@ namespace Lab_5.ViewModels
 
                 foreach (ProcessWrapper pw in updatedProcesses)
                 {
-                    if (SelectedProcess != null && pw.Pid == processId)
+                    ProcessesData.Add(pw);
+                    if (processId != -1 && pw.Pid == processId)
                     {
-                        SelectedProcess = pw;
-                        ProcessesData.Add(SelectedProcess);
+                        lock (Lock)
+                        {
+                            SelectedProcess = pw;
+                        }
                     }
-                    else ProcessesData.Add(pw);
                 }
 
-                MessageBox.Show($"Complete.\nTotal: {watch.ElapsedMilliseconds}");
+                // MessageBox.Show($"Complete.\nTotal: {watch.ElapsedMilliseconds}\n{SelectedProcess}");
             }
         }
 
@@ -243,34 +305,16 @@ namespace Lab_5.ViewModels
                 select wrapper).ToHashSet();
         }
 
-        // internal void launchUpdates()
-        // {
-        //     Refresh();
-        // }
-        //
-        // private async void Refresh()
-        // {
-        //     while (true)
-        //     {
-        //         List<ProcessWrapper> refreshed = await new Task<List<ProcessWrapper>>(DelegateLogic);
-        //         ProcessesData.Clear();
-        //         foreach (var pw in refreshed)
-        //         {
-        //             refreshed.Add(pw);
-        //         }
-        //     }
-        // }
-        //
-        // private List<ProcessWrapper> DelegateLogic()
-        // {
-        //     List<ProcessWrapper> updatedProcesses = new List<ProcessWrapper>(); 
-        //     Process[] processes = Process.GetProcesses();
-        //     foreach (Process p in processes)
-        //     {
-        //         updatedProcesses.Add(new ProcessWrapper(p).Update());
-        //     }
-        //     if (_sortIsSet) sort(updatedProcesses, _sortTarget);
-        //     return updatedProcesses;
-        // }
+        #region INotify
+
+        public event PropertyChangedEventHandler PropertyChanged;
+
+        [NotifyPropertyChangedInvocator]
+        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        #endregion
     }
 }

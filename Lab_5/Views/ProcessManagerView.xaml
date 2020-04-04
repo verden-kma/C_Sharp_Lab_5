@@ -32,7 +32,8 @@
                    FontSize="24" FontWeight="SemiBold" Text="Custom Task Manager"/>
         
         <DataGrid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" ItemsSource="{Binding Path=ProcessesData}"
-                  SelectedItem="{Binding Path=SelectedProcess, Mode=TwoWay}" AlternatingRowBackground="Gray"
+                  SelectedItem="{Binding Path=SelectedProcess, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AlternatingRowBackground="Gray"
+                  
             HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AutoGenerateColumns="True"
                   CanUserAddRows="False" CanUserDeleteRows="False">
             
