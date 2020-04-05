@@ -27,20 +27,21 @@ namespace Lab_5.ViewModels
         private readonly HashSet<int> _deniedProcesses = new HashSet<int>();
 
         private delegate void AddPw(ProcessWrapper future);
-        private delegate void ClearCollection();
-        
+
+        private delegate void VoidAction();
+
         #endregion
 
         #region Props
 
-        private ProcessWrapper temp;
+        private ProcessWrapper _selectedProcess;
 
         public ProcessWrapper SelectedProcess
         {
-            get => temp;
+            get => _selectedProcess;
             set
             {
-                temp = value;
+                _selectedProcess = value;
                 OnPropertyChanged();
             }
         }
@@ -78,7 +79,7 @@ namespace Lab_5.ViewModels
                     sb.Append("Module Path: ").Append(module.FileName).AppendLine().AppendLine();
                 }
 
-                FlexibleMessageBox.Show(sb.ToString());
+                Task.Run(() => FlexibleMessageBox.Show(sb.ToString()));
             }
             catch (Exception)
             {
@@ -117,7 +118,7 @@ namespace Lab_5.ViewModels
                     sb.Append("Start Time: ").Append(thread.StartTime).AppendLine().AppendLine();
                 }
 
-                FlexibleMessageBox.Show(sb.ToString());
+                Task.Run(() => FlexibleMessageBox.Show(sb.ToString()));
             }
             catch (Exception)
             {
@@ -179,7 +180,7 @@ namespace Lab_5.ViewModels
             {
                 Process.Start("explorer", @SelectedProcess.FilePath);
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 MessageBox.Show("Unable to open folder.\n");
             }
@@ -231,7 +232,6 @@ namespace Lab_5.ViewModels
             bool firstRun = true;
             while (true)
             {
-                Stopwatch watch = Stopwatch.StartNew();
                 List<Process> processes =
                     (from p in Process.GetProcesses() where !_deniedProcesses.Contains(p.Id) select p).ToList();
                 List<Task<ProcessWrapper>> futuresList =
@@ -240,7 +240,6 @@ namespace Lab_5.ViewModels
                 {
                     firstRun = false;
                     await ProcessFirstRun(futuresList);
-                    MessageBox.Show("fin");
                     processes.ForEach(process => process.Dispose());
                     continue;
                 }
@@ -259,12 +258,11 @@ namespace Lab_5.ViewModels
                 if (_sortIsSet) Sort(ref updatedProcesses, _sortTarget);
 
                 UpdateProcessWrapper(updatedProcesses.ToList());
-
-                //MessageBox.Show($"Complete.\nTotal: {watch.ElapsedMilliseconds}\n{SelectedProcess}");
+                await Task.Delay(100);
             }
         }
 
-        private void UpdateProcessWrapper(List<ProcessWrapper> pws)
+        private void UpdateProcessWrapper(IReadOnlyList<ProcessWrapper> pws)
         {
             // `selected` is buggy 
             int processId = -1;
@@ -276,24 +274,26 @@ namespace Lab_5.ViewModels
                 }
             }
 
-            Application.Current.Dispatcher.BeginInvoke(new ClearCollection(ProcessesData.Clear), DispatcherPriority.Render);
+            Application.Current.Dispatcher.BeginInvoke(new VoidAction(ProcessesData.Clear), DispatcherPriority.Render);
 
-           DispatcherOperation[] operations = new DispatcherOperation[pws.Count];
+            DispatcherOperation[] operations = new DispatcherOperation[pws.Count];
             for (int i = 0; i < pws.Count; i++)
             {
                 operations[i] = Application.Current.Dispatcher.BeginInvoke(new AddPw(ProcessesData.Add),
                     DispatcherPriority.Render, pws[i]);
                 if (processId != -1 && pws[i].Pid == processId)
-                    lock (Lock)
-                    {
-                        SelectedProcess = pws[i];
-                    }
+                {
+                    int copyOfValue = i;
+                    Application.Current.Dispatcher.BeginInvoke(new VoidAction(() =>
+                        {
+                            //SelectedProcess = pws[copyOfValue];
+                            SelectedProcess = ProcessesData.First(p => p.Equals(pws[copyOfValue]));
+                        }),
+                        DispatcherPriority.Render);
+                }
             }
 
-            // foreach (DispatcherOperation oper in operations)
-            // {
-            //     oper.Wait();
-            // }
+            //MessageBox.Show("Selected: \n" + SelectedProcess);
         }
 
         private async Task ProcessFirstRun(ICollection<Task<ProcessWrapper>> futures)

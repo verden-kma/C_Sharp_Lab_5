@@ -32,10 +32,27 @@
                    FontSize="24" FontWeight="SemiBold" Text="Custom Task Manager"/>
         
         <DataGrid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" ItemsSource="{Binding Path=ProcessesData}"
-                  SelectedItem="{Binding Path=SelectedProcess, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AlternatingRowBackground="Gray"
-                  
+                  SelectedItem="{Binding Path=SelectedProcess, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" 
+                  AlternatingRowBackground="Gray" SelectionMode="Single" IsSynchronizedWithCurrentItem="True"
             HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AutoGenerateColumns="True"
                   CanUserAddRows="False" CanUserDeleteRows="False">
+            
+            <DataGrid.ItemContainerStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True" >
+                            <Setter Property="FontWeight" Value="Bold" />
+                            <Setter Property="FontSize" Value="16" />
+                            <Setter Property="Background" Value="White" />
+                        </Trigger>
+                    </Style.Triggers>
+                    <Style.Resources>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="Black"/>
+                        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="White"/>
+
+                    </Style.Resources>
+                </Style>
+            </DataGrid.ItemContainerStyle>
             
         </DataGrid>
         
