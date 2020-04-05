@@ -6,10 +6,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Data;
+using System.Windows.Threading;
 using Lab_5.Models;
 using Lab_5.Properties;
 using Lab_5.Tools.MVVM;
@@ -25,6 +24,11 @@ namespace Lab_5.ViewModels
         private string _sortTarget;
         private static readonly object Lock = new object();
 
+        private readonly HashSet<int> _deniedProcesses = new HashSet<int>();
+
+        private delegate void AddPw(ProcessWrapper future);
+        private delegate void ClearCollection();
+        
         #endregion
 
         #region Props
@@ -215,7 +219,6 @@ namespace Lab_5.ViewModels
         internal ManagerVM()
         {
             ProcessesData = new ObservableCollection<ProcessWrapper>();
-            BindingOperations.EnableCollectionSynchronization(ProcessesData, Lock);
         }
 
         internal void LaunchRefresh()
@@ -223,15 +226,12 @@ namespace Lab_5.ViewModels
             new Task(DelegateLogic).Start();
         }
 
-        private readonly HashSet<int> _deniedProcesses = new HashSet<int>();
-
         private async void DelegateLogic()
         {
             bool firstRun = true;
             while (true)
             {
                 Stopwatch watch = Stopwatch.StartNew();
-
                 List<Process> processes =
                     (from p in Process.GetProcesses() where !_deniedProcesses.Contains(p.Id) select p).ToList();
                 List<Task<ProcessWrapper>> futuresList =
@@ -240,6 +240,7 @@ namespace Lab_5.ViewModels
                 {
                     firstRun = false;
                     await ProcessFirstRun(futuresList);
+                    MessageBox.Show("fin");
                     processes.ForEach(process => process.Dispose());
                     continue;
                 }
@@ -257,32 +258,42 @@ namespace Lab_5.ViewModels
 
                 if (_sortIsSet) Sort(ref updatedProcesses, _sortTarget);
 
-                // `selected` is buggy 
-                int processId = -1;
+                UpdateProcessWrapper(updatedProcesses.ToList());
+
+                //MessageBox.Show($"Complete.\nTotal: {watch.ElapsedMilliseconds}\n{SelectedProcess}");
+            }
+        }
+
+        private void UpdateProcessWrapper(List<ProcessWrapper> pws)
+        {
+            // `selected` is buggy 
+            int processId = -1;
+            {
+                lock (Lock)
                 {
+                    if (SelectedProcess != null)
+                        processId = SelectedProcess.Pid;
+                }
+            }
+
+            Application.Current.Dispatcher.BeginInvoke(new ClearCollection(ProcessesData.Clear), DispatcherPriority.Render);
+
+           DispatcherOperation[] operations = new DispatcherOperation[pws.Count];
+            for (int i = 0; i < pws.Count; i++)
+            {
+                operations[i] = Application.Current.Dispatcher.BeginInvoke(new AddPw(ProcessesData.Add),
+                    DispatcherPriority.Render, pws[i]);
+                if (processId != -1 && pws[i].Pid == processId)
                     lock (Lock)
                     {
-                        if (SelectedProcess != null)
-                            processId = SelectedProcess.Pid;
+                        SelectedProcess = pws[i];
                     }
-                }
-
-                ProcessesData.Clear();
-
-                foreach (ProcessWrapper pw in updatedProcesses)
-                {
-                    ProcessesData.Add(pw);
-                    if (processId != -1 && pw.Pid == processId)
-                    {
-                        lock (Lock)
-                        {
-                            SelectedProcess = pw;
-                        }
-                    }
-                }
-
-                // MessageBox.Show($"Complete.\nTotal: {watch.ElapsedMilliseconds}\n{SelectedProcess}");
             }
+
+            // foreach (DispatcherOperation oper in operations)
+            // {
+            //     oper.Wait();
+            // }
         }
 
         private async Task ProcessFirstRun(ICollection<Task<ProcessWrapper>> futures)
@@ -293,9 +304,12 @@ namespace Lab_5.ViewModels
                 futures.Remove(nextPw);
                 ProcessWrapper sample = await nextPw;
                 if (sample.Name == null) _deniedProcesses.Add(sample.Pid);
-                else ProcessesData.Add(sample);
+                else
+                    Application.Current.Dispatcher.BeginInvoke(new AddPw(ProcessesData.Add), DispatcherPriority.Render,
+                        sample);
             }
         }
+
 
         private static void Sort(ref HashSet<ProcessWrapper> wrappers, string target)
         {
