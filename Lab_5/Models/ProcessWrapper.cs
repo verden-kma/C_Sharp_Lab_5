@@ -5,12 +5,11 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Management;
 using System.Threading.Tasks;
-using System.Windows;
 using Lab_5.Properties;
 
 namespace Lab_5.Models
 {
-    public class ProcessWrapper : INotifyPropertyChanged
+    public sealed class ProcessWrapper : INotifyPropertyChanged
     {
         #region Fields
 
@@ -59,7 +58,7 @@ namespace Lab_5.Models
                     ? UseCache(p.Id)
                     : await Task.Run(() => BuildNew(p));
 
-                await instance.SetMutableData(p);
+                instance.SetMutableData(p);
                 return instance;
             }
             catch (Win32Exception)
@@ -72,7 +71,7 @@ namespace Lab_5.Models
             }
         }
 
-        private static ProcessWrapper BuildNew(Process p)
+        private static async Task<ProcessWrapper> BuildNew(Process p)
         {
             ProcessWrapper res = new ProcessWrapper();
             res.Pid = p.Id;
@@ -82,12 +81,15 @@ namespace Lab_5.Models
             string fullPath = p.MainModule.FileName;
             res.FilePath = fullPath.Substring(0, fullPath.LastIndexOf('\\'));
             res.FileName = fullPath.Substring(fullPath.LastIndexOf('\\') + 1);
+            PerformanceCounter cpuPc = new PerformanceCounter("Process", "% Processor Time", res.Name, true);
+            cpuPc.NextValue();
             lock (Lock)
             {
                 ProcessCache.Add(res.Pid,
-                    new ProcessData(res.Name, res.IsActive, res.UserName, res.FilePath, res.FileName));
+                    new ProcessData(res.Name, res.IsActive, res.UserName, res.FilePath, res.FileName, cpuPc));
             }
-
+            await Task.Delay(1000);
+            
             return res;
         }
         
@@ -104,9 +106,10 @@ namespace Lab_5.Models
             return res;
         }
 
-        private async Task SetMutableData(Process p)
+        private void SetMutableData(Process p)
         {
-            CpuPercent = await CalcCpuPercentAsync(p.ProcessName);
+            CpuPercent = ProcessCache[p.Id].CpuCounter.NextValue();
+            CpuPercent = (int)(CpuPercent * 10) / 10.0f;
             LaunchTime = p.StartTime;
             NumThreads = p.Threads.Count;
             long usedBytes = p.WorkingSet64;
@@ -117,14 +120,6 @@ namespace Lab_5.Models
         #endregion
 
         #region HelperMethods
-
-        private static async Task<float> CalcCpuPercentAsync(string processName)
-        {
-            PerformanceCounter pc = new PerformanceCounter("Process", "% Processor Time", processName, true);
-            pc.NextValue();
-            await Task.Delay(500);
-            return pc.NextValue();
-        }
 
         private static double CalcRamPercent(long ramUsage)
         {
@@ -176,7 +171,7 @@ namespace Lab_5.Models
         public event PropertyChangedEventHandler PropertyChanged;
 
         [NotifyPropertyChangedInvocator]
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }

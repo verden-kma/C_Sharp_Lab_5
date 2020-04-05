@@ -16,7 +16,7 @@ using Lab_5.Views;
 
 namespace Lab_5.ViewModels
 {
-    public class ManagerVM : INotifyPropertyChanged
+    public sealed class ManagerVM : INotifyPropertyChanged
     {
         #region Fields
 
@@ -220,9 +220,10 @@ namespace Lab_5.ViewModels
         internal ManagerVM()
         {
             ProcessesData = new ObservableCollection<ProcessWrapper>();
+            LaunchRefresh();
         }
 
-        internal void LaunchRefresh()
+        private void LaunchRefresh()
         {
             new Task(DelegateLogic).Start();
         }
@@ -258,13 +259,12 @@ namespace Lab_5.ViewModels
                 if (_sortIsSet) Sort(ref updatedProcesses, _sortTarget);
 
                 UpdateProcessWrapper(updatedProcesses.ToList());
-                await Task.Delay(100);
+                await Task.Delay(1000);
             }
         }
 
         private void UpdateProcessWrapper(IReadOnlyList<ProcessWrapper> pws)
         {
-            // `selected` is buggy 
             int processId = -1;
             {
                 lock (Lock)
@@ -284,16 +284,10 @@ namespace Lab_5.ViewModels
                 if (processId != -1 && pws[i].Pid == processId)
                 {
                     int copyOfValue = i;
-                    Application.Current.Dispatcher.BeginInvoke(new VoidAction(() =>
-                        {
-                            //SelectedProcess = pws[copyOfValue];
-                            SelectedProcess = ProcessesData.First(p => p.Equals(pws[copyOfValue]));
-                        }),
+                    Application.Current.Dispatcher.BeginInvoke(new VoidAction(() => SelectedProcess = pws[copyOfValue]),
                         DispatcherPriority.Render);
                 }
             }
-
-            //MessageBox.Show("Selected: \n" + SelectedProcess);
         }
 
         private async Task ProcessFirstRun(ICollection<Task<ProcessWrapper>> futures)
@@ -324,7 +318,7 @@ namespace Lab_5.ViewModels
         public event PropertyChangedEventHandler PropertyChanged;
 
         [NotifyPropertyChangedInvocator]
-        protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
+        private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }

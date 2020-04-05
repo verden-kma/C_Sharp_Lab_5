@@ -15,7 +15,7 @@
         </Style>
     </UserControl.Resources>
     
-    <Grid> <!-- DataContext="{Binding Source={StaticResource Manager}}" -->
+    <Grid DataContext="{Binding Source={StaticResource Manager}}">
         <Grid.RowDefinitions>
             <RowDefinition Height="1*" />
             <RowDefinition Height="8*" />
