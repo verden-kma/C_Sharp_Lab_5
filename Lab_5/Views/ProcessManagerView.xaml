@@ -15,7 +15,7 @@
         </Style>
     </UserControl.Resources>
     
-    <Grid DataContext="{Binding Source={StaticResource Manager}}">
+    <Grid> <!-- DataContext="{Binding Source={StaticResource Manager}}" -->
         <Grid.RowDefinitions>
             <RowDefinition Height="1*" />
             <RowDefinition Height="8*" />
@@ -32,9 +32,9 @@
                    FontSize="24" FontWeight="SemiBold" Text="Custom Task Manager"/>
         
         <DataGrid Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4" ItemsSource="{Binding Path=ProcessesData}"
-                  SelectedItem="{Binding Path=CurrentProcess, Mode=TwoWay}"
-            HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto"
-            AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False">
+                  SelectedItem="{Binding Path=SelectedProcess, Mode=TwoWay}" AlternatingRowBackground="Gray"
+            HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" AutoGenerateColumns="True"
+                  CanUserAddRows="False" CanUserDeleteRows="False">
             
         </DataGrid>
         
