@@ -164,19 +164,40 @@ namespace Lab_5.ViewModels
             new Task(DelegateLogic).Start();
         }
 
+        private readonly HashSet<int> _deniedProcesses = new HashSet<int>();
+
         private async void DelegateLogic()
         {
+            bool firstRun = true;
             while (true)
             {
                 Stopwatch watch = Stopwatch.StartNew();
 
-                Process[] processes = Process.GetProcesses();
-                List<Task<ProcessWrapper>> futuresList = processes.Select(ProcessWrapper.ConstructProcessWrapper).ToList();
-                ProcessWrapper[] updatedProcesses = await Task.WhenAll(futuresList);
-                updatedProcesses = (from process in updatedProcesses where process != null select process).ToArray();
+                List<Process> processes =
+                    (from p in Process.GetProcesses() where !_deniedProcesses.Contains(p.Id) select p).ToList();
+                List<Task<ProcessWrapper>> futuresList =
+                    processes.Select(ProcessWrapper.ConstructProcessWrapper).ToList();
+                if (firstRun)
+                {
+                    firstRun = false;
+                    await ProcessFirstRun(futuresList);
+                    processes.ForEach(process => process.Dispose());
+                    continue;
+                }
+
+                HashSet<ProcessWrapper> updatedProcesses = new HashSet<ProcessWrapper>(await Task.WhenAll(futuresList));
+                processes.ForEach(process => process.Dispose());
+
+                foreach (ProcessWrapper pw in updatedProcesses.ToArray())
+                {
+                    if (pw.Name != null) continue;
+                    _deniedProcesses.Add(pw.Pid);
+                    updatedProcesses.Remove(pw);
+                }
 
                 if (_sortIsSet) Sort(ref updatedProcesses, _sortTarget);
-                
+
+                // `selected` is buggy 
                 int processId = -1;
                 if (SelectedProcess != null)
                 {
@@ -185,7 +206,7 @@ namespace Lab_5.ViewModels
                         processId = SelectedProcess.Pid;
                     }
                 }
-                
+
                 ProcessesData.Clear();
 
                 foreach (ProcessWrapper pw in updatedProcesses)
@@ -202,12 +223,24 @@ namespace Lab_5.ViewModels
             }
         }
 
-        private static void Sort(ref ProcessWrapper[] wrappers, string target)
+        private async Task ProcessFirstRun(ICollection<Task<ProcessWrapper>> futures)
+        {
+            while (futures.Count > 0)
+            {
+                Task<ProcessWrapper> nextPw = await Task.WhenAny(futures);
+                futures.Remove(nextPw);
+                ProcessWrapper sample = await nextPw;
+                if (sample.Name == null) _deniedProcesses.Add(sample.Pid);
+                else ProcessesData.Add(sample);
+            }
+        }
+
+        private static void Sort(ref HashSet<ProcessWrapper> wrappers, string target)
         {
             wrappers = (from wrapper in wrappers
                 orderby wrapper.GetType().GetProperty(target)
                     .GetValue(wrapper, null)
-                select wrapper).ToArray();
+                select wrapper).ToHashSet();
         }
 
         // internal void launchUpdates()

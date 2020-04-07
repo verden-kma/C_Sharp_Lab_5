@@ -55,19 +55,19 @@ namespace Lab_5.Models
         {
             try
             {
-                //TODO: do all job with processes in parallel 
+                Stopwatch sw = Stopwatch.StartNew();
                 ProcessWrapper instance = ProcessCache.ContainsKey(p.Id)
                     ? UseCache(p.Id)
-                    : BuildNew(p);
-                
-                Stopwatch sw = Stopwatch.StartNew();
-                await instance.SetMutableData(p);
+                    : await Task.Run(() => BuildNew(p));
                 records.Add(sw.ElapsedMilliseconds);
+                
+                await instance.SetMutableData(p);
+
                 return instance;
             }
             catch (Win32Exception)
             {
-                return null;
+                return new ProcessWrapper {Pid = p.Id, Name = null};
             }
         }
 
@@ -85,10 +85,12 @@ namespace Lab_5.Models
                 ProcessCache.Add(res.Pid,
                     new ProcessData(res.Name, res.IsActive, res.UserName, res.FilePath, res.FileName));
             }
+
             return res;
         }
 
         static List<long> records = new List<long>();
+
         private static ProcessWrapper UseCache(int pId)
         {
             //Stopwatch sw = Stopwatch.StartNew();
@@ -155,12 +157,21 @@ namespace Lab_5.Models
 
         #endregion
 
-        // public override bool Equals(object obj)
-        // {
-        //     if (obj is ProcessWrapper wrapper)
-        //         return Pid == wrapper.Pid;
-        //     return false;
-        // }
+        #region HashEquals
+
+        public override int GetHashCode()
+        {
+            return Pid.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj is ProcessWrapper wrapper)
+                return Pid == wrapper.Pid;
+            return false;
+        }
+
+        #endregion
 
         #region INotify
 
